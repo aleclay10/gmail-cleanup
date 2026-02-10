@@ -100,5 +100,36 @@ gmail-cleanup/
 ├── state.py               # Checkpoint/resume persistence
 ├── requirements.txt       # Python dependencies
 ├── credentials/           # OAuth files (git-ignored)
-└── output/                # Reports and checkpoint (git-ignored)
+├── output/                # Reports and checkpoint (git-ignored)
+└── tests/                 # Unit tests
+    ├── conftest.py        # Shared fixtures
+    ├── test_state.py
+    ├── test_gmail_auth.py
+    ├── test_gmail_client.py
+    ├── test_llm_classifier.py
+    └── test_classifier_engine.py
 ```
+
+## Running Tests
+
+Install test dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the full test suite:
+
+```bash
+python -m pytest tests/ -v
+```
+
+All 38 tests are fully mocked — no Gmail API calls, Ollama requests, or filesystem side effects. The suite covers:
+
+| Module | Tests | What's covered |
+|--------|-------|----------------|
+| `state.py` | 8 | Save/load round-trips, atomic writes, backward compatibility, clear |
+| `gmail_auth.py` | 5 | Token loading, refresh, browser flow, missing credentials |
+| `gmail_client.py` | 8 | Message fetching, pagination, batch details, label management |
+| `llm_classifier.py` | 10 | Ollama availability, classification responses, error handling, timeouts |
+| `classifier_engine.py` | 6 | Full pipeline, resume/checkpoint, stop event, report generation |
