@@ -4,7 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 
-from config import DEFAULT_QUERY, OLLAMA_URL, SETTINGS_FILE
+from config import DEFAULT_QUERY, OLLAMA_URL, RUN_HISTORY_FILE, SETTINGS_FILE
 from gmail_auth import get_gmail_service
 from llm_classifier import check_ollama_available
 from classifier_engine import ClassifierEngine
@@ -150,14 +150,49 @@ class GmailCleanupGUI:
             fill="x", pady=(5, 0)
         )
 
-        # --- Log ---
-        self.log_frame = ttk.LabelFrame(self.root, text="Log", padding=8)
-        self.log_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        # --- Notebook (Log + History) ---
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+
+        # Tab 1 — Log
+        self.log_frame = ttk.Frame(self.notebook, padding=8)
+        self.notebook.add(self.log_frame, text="Log")
 
         self.log_text = scrolledtext.ScrolledText(
             self.log_frame, height=10, state="disabled", wrap="word"
         )
         self.log_text.pack(fill="both", expand=True)
+
+        # Tab 2 — History
+        self.history_frame = ttk.Frame(self.notebook, padding=8)
+        self.notebook.add(self.history_frame, text="History")
+
+        columns = ("date", "status", "total", "important", "low_priority", "duration")
+        self.history_tree = ttk.Treeview(
+            self.history_frame, columns=columns, show="headings", height=10
+        )
+        self.history_tree.heading("date", text="Date")
+        self.history_tree.heading("status", text="Status")
+        self.history_tree.heading("total", text="Total")
+        self.history_tree.heading("important", text="Important")
+        self.history_tree.heading("low_priority", text="Low Priority")
+        self.history_tree.heading("duration", text="Duration (s)")
+
+        self.history_tree.column("date", width=150)
+        self.history_tree.column("status", width=80)
+        self.history_tree.column("total", width=60, anchor="center")
+        self.history_tree.column("important", width=80, anchor="center")
+        self.history_tree.column("low_priority", width=80, anchor="center")
+        self.history_tree.column("duration", width=90, anchor="center")
+
+        history_scroll = ttk.Scrollbar(
+            self.history_frame, orient="vertical", command=self.history_tree.yview
+        )
+        self.history_tree.configure(yscrollcommand=history_scroll.set)
+        self.history_tree.pack(side="left", fill="both", expand=True)
+        history_scroll.pack(side="right", fill="y")
+
+        self._refresh_history()
 
         # Counters
         self._important_count = 0
@@ -222,6 +257,18 @@ class GmailCleanupGUI:
         self.style.map("TEntry", fieldbackground=[("readonly", colors["readonly_bg"])])
 
         self.style.configure("Status.TLabel", background=colors["bg"], foreground=colors["accent"])
+
+        self.style.configure("TNotebook", background=colors["bg"])
+        self.style.configure("TNotebook.Tab", background=colors["bg"], foreground=colors["fg"])
+        self.style.map("TNotebook.Tab", background=[("selected", colors["field_bg"])])
+
+        self.style.configure(
+            "Treeview",
+            background=colors["field_bg"],
+            foreground=colors["fg"],
+            fieldbackground=colors["field_bg"],
+        )
+        self.style.configure("Treeview.Heading", background=colors["bg"], foreground=colors["fg"])
 
         self.root.configure(bg=colors["bg"])
 
@@ -350,11 +397,30 @@ class GmailCleanupGUI:
 
         self._poll_engine()
 
+    def _refresh_history(self):
+        for row in self.history_tree.get_children():
+            self.history_tree.delete(row)
+        try:
+            with open(RUN_HISTORY_FILE, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            history = []
+        for entry in reversed(history):
+            self.history_tree.insert("", "end", values=(
+                entry.get("date", ""),
+                entry.get("status", ""),
+                entry.get("total", 0),
+                entry.get("important", 0),
+                entry.get("low_priority", 0),
+                entry.get("duration_seconds", ""),
+            ))
+
     def _poll_engine(self):
         if self.engine and self.engine.is_running():
             self.root.after(500, self._poll_engine)
         else:
             self._set_running(False)
+            self._refresh_history()
 
     def _on_start(self):
         self._launch_engine(resume=False)

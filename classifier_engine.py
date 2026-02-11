@@ -1,6 +1,8 @@
 import html
+import json
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -9,6 +11,7 @@ from config import (
     LABEL_IMPORTANT,
     LABEL_LOW_PRIORITY,
     REPORT_FILE,
+    RUN_HISTORY_FILE,
     BATCH_SIZE,
 )
 from gmail_client import GmailClient
@@ -49,6 +52,8 @@ class ClassifierEngine:
             self.log_cb(f"ERROR: {e}")
 
     def _pipeline(self, resume):
+        self._start_time = time.time()
+
         # Load or create state
         if resume:
             self.state = RunState.load()
@@ -100,6 +105,7 @@ class ClassifierEngine:
                 self.log_cb("Stopped by user. Checkpoint saved.")
                 self.state.save()
                 prefetch_executor.shutdown(wait=False)
+                self._save_run_summary("stopped")
                 return
 
             # Get details for current batch (from prefetch or direct fetch)
@@ -149,7 +155,30 @@ class ClassifierEngine:
         self._generate_report()
 
         RunState.clear()
+        self._save_run_summary("completed")
         self.log_cb("Done!")
+
+    def _save_run_summary(self, status):
+        important = sum(1 for c in self.state.processed.values() if c == "important")
+        low_priority = sum(1 for c in self.state.processed.values() if c == "low_priority")
+        entry = {
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "query": self.query,
+            "status": status,
+            "total": len(self.state.processed),
+            "important": important,
+            "low_priority": low_priority,
+            "duration_seconds": round(time.time() - self._start_time, 1),
+        }
+        try:
+            with open(RUN_HISTORY_FILE, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            history = []
+        history.append(entry)
+        with open(RUN_HISTORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+        log.info("Run summary saved to %s", RUN_HISTORY_FILE)
 
     def _apply_labels(self):
         important_ids = [

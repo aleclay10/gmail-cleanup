@@ -8,6 +8,8 @@ CLIENT_SECRET_FILE = os.path.join(CREDENTIALS_DIR, "client_secret.json")
 TOKEN_FILE = os.path.join(CREDENTIALS_DIR, "token.json")
 CHECKPOINT_FILE = os.path.join(OUTPUT_DIR, "checkpoint.json")
 REPORT_FILE = os.path.join(OUTPUT_DIR, "report.html")
+LOG_FILE = os.path.join(OUTPUT_DIR, "gmail-cleanup.log")
+RUN_HISTORY_FILE = os.path.join(OUTPUT_DIR, "run_history.json")
 
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 

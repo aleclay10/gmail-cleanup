@@ -60,7 +60,7 @@ On first run, a browser window will open asking you to sign in to your Google ac
 | **Resume** | Continues from the last saved checkpoint |
 | **Dark Mode** | Toggles between light and dark themes |
 
-The progress bar, counters, and log area show real-time status as emails are classified.
+The progress bar, counters, and log area show real-time status as emails are classified. The bottom section is a tabbed notebook with a **Log** tab (live output) and a **History** tab (past run summaries).
 
 ### Settings Persistence
 
@@ -79,6 +79,10 @@ When you close the window, the application minimizes to the system tray instead 
 5. Generates an HTML report in the `output/` directory
 
 Unrecognized LLM responses default to **Important** so nothing gets accidentally buried.
+
+## Run History & Logging
+
+All engine activity is written to a persistent log file at `output/gmail-cleanup.log` (rotating, 5 MB max, 3 backups). After each run, a summary (date, query, status, totals, duration) is appended to `output/run_history.json`. The **History** tab in the GUI displays these past runs in a table so you can review previous results without re-running the tool.
 
 ## Checkpoint & Resume
 
@@ -113,7 +117,7 @@ gmail-cleanup/
 ├── state.py               # Checkpoint/resume persistence
 ├── requirements.txt       # Python dependencies
 ├── credentials/           # OAuth files (git-ignored)
-├── output/                # Reports and checkpoint (git-ignored)
+├── output/                # Reports, logs, run history, and checkpoint (git-ignored)
 └── tests/                 # Unit tests
     ├── conftest.py        # Shared fixtures
     ├── test_state.py
