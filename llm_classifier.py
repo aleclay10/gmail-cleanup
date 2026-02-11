@@ -1,10 +1,13 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
-from config import OLLAMA_URL, OLLAMA_MODEL
+from config import OLLAMA_URL, OLLAMA_MODEL, LLM_WORKERS
 
 log = logging.getLogger(__name__)
+
+_session = requests.Session()
 
 SYSTEM_PROMPT = (
     "You are an email classifier. Your task is to classify an email as "
@@ -23,7 +26,7 @@ SYSTEM_PROMPT = (
 
 def check_ollama_available():
     try:
-        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        r = _session.get(f"{OLLAMA_URL}/api/tags", timeout=5)
         r.raise_for_status()
         models = [m["name"] for m in r.json().get("models", [])]
         if not any(OLLAMA_MODEL in m for m in models):
@@ -45,7 +48,7 @@ def classify_email(from_addr, subject, snippet):
     )
 
     try:
-        r = requests.post(
+        r = _session.post(
             f"{OLLAMA_URL}/api/chat",
             json={
                 "model": OLLAMA_MODEL,
@@ -73,11 +76,14 @@ def classify_email(from_addr, subject, snippet):
     return "important"
 
 
-def classify_batch(emails):
+def classify_batch(emails, max_workers=LLM_WORKERS):
     results = {}
-    for email in emails:
-        classification = classify_email(
-            email["from"], email["subject"], email["snippet"]
-        )
-        results[email["id"]] = classification
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {
+            pool.submit(classify_email, e["from"], e["subject"], e["snippet"]): e["id"]
+            for e in emails
+        }
+        for future in as_completed(futures):
+            mid = futures[future]
+            results[mid] = future.result()
     return results

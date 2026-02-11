@@ -1,11 +1,10 @@
 import html
 import logging
 import threading
-import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 from config import (
-    CHECKPOINT_INTERVAL,
     DEFAULT_QUERY,
     LABEL_IMPORTANT,
     LABEL_LOW_PRIORITY,
@@ -13,7 +12,7 @@ from config import (
     BATCH_SIZE,
 )
 from gmail_client import GmailClient
-from llm_classifier import classify_email
+from llm_classifier import classify_batch
 from state import RunState
 
 log = logging.getLogger(__name__)
@@ -29,6 +28,7 @@ class ClassifierEngine:
         self._stop_event = threading.Event()
         self._thread = None
         self.state = None
+        self._details_cache = {}
 
     def start(self, resume=False):
         self._stop_event.clear()
@@ -85,35 +85,59 @@ class ClassifierEngine:
         ]
         self.log_cb(f"Classifying {len(ids_to_process)} remaining messages...")
 
-        # Fetch details in batches and classify
-        for batch_start in range(0, len(ids_to_process), BATCH_SIZE):
+        # Build list of batch ID chunks
+        batch_chunks = [
+            ids_to_process[i : i + BATCH_SIZE]
+            for i in range(0, len(ids_to_process), BATCH_SIZE)
+        ]
+
+        # Prefetch pipeline: fetch next batch details while classifying current
+        prefetch_executor = ThreadPoolExecutor(max_workers=1)
+        prefetch_future = None
+
+        for batch_idx, batch_ids in enumerate(batch_chunks):
             if self._stop_event.is_set():
                 self.log_cb("Stopped by user. Checkpoint saved.")
                 self.state.save()
+                prefetch_executor.shutdown(wait=False)
                 return
 
-            batch_ids = ids_to_process[batch_start : batch_start + BATCH_SIZE]
-            details = self.gmail.fetch_message_details_batch(batch_ids)
+            # Get details for current batch (from prefetch or direct fetch)
+            if prefetch_future is not None:
+                details = prefetch_future.result()
+            else:
+                details = self.gmail.fetch_message_details_batch(batch_ids)
 
-            for mid, email in details.items():
-                if self._stop_event.is_set():
-                    self.state.save()
-                    self.log_cb("Stopped by user. Checkpoint saved.")
-                    return
+            # Cache details for report
+            self._details_cache.update(details)
 
-                classification = classify_email(
-                    email["from"], email["subject"], email["snippet"]
+            # Start prefetching next batch
+            next_idx = batch_idx + 1
+            if next_idx < len(batch_chunks):
+                next_batch_ids = batch_chunks[next_idx]
+                prefetch_future = prefetch_executor.submit(
+                    self.gmail.fetch_message_details_batch, next_batch_ids
                 )
+            else:
+                prefetch_future = None
+
+            # Classify entire batch concurrently
+            classifications = classify_batch(list(details.values()))
+
+            # Update state with results
+            for mid, classification in classifications.items():
                 self.state.processed[mid] = classification
 
                 done = len(self.state.processed)
+                email = details.get(mid, {})
                 self.progress_cb(done, total, classification)
                 self.log_cb(
-                    f"[{done}/{total}] {classification.upper()}: {email['subject'][:60]}"
+                    f"[{done}/{total}] {classification.upper()}: {email.get('subject', '')[:60]}"
                 )
 
-                if done % CHECKPOINT_INTERVAL == 0:
-                    self.state.save()
+            self.state.save()
+
+        prefetch_executor.shutdown(wait=False)
 
         self.state.save()
         self.log_cb("Classification complete. Applying labels...")
@@ -163,10 +187,13 @@ class ClassifierEngine:
             if cls == "low_priority"
         }
 
-        # Fetch details for report
-        all_ids = list(self.state.processed.keys())
-        self.log_cb("Fetching details for report...")
-        details = self.gmail.fetch_message_details_batch(all_ids)
+        # Use cached details if available, otherwise fall back to API fetch
+        if self._details_cache:
+            details = self._details_cache
+        else:
+            all_ids = list(self.state.processed.keys())
+            self.log_cb("Fetching details for report...")
+            details = self.gmail.fetch_message_details_batch(all_ids)
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         rows_important = ""

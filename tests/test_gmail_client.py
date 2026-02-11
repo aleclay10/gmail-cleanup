@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -37,8 +37,7 @@ class TestFetchMessageIds:
 
 
 class TestFetchMessageDetailsBatch:
-    @patch("gmail_client.time.sleep")
-    def test_extracts_headers(self, mock_sleep, client, mock_gmail_service):
+    def test_extracts_headers(self, client, mock_gmail_service):
         batch_mock = MagicMock()
         pending = []
 
@@ -72,8 +71,7 @@ class TestFetchMessageDetailsBatch:
         assert results["msg1"]["date"] == "2025-01-01"
         assert results["msg1"]["snippet"] == "Preview text"
 
-    @patch("gmail_client.time.sleep")
-    def test_handles_batch_errors(self, mock_sleep, client, mock_gmail_service):
+    def test_handles_batch_errors(self, client, mock_gmail_service):
         batch_mock = MagicMock()
         pending = []
 
@@ -122,8 +120,7 @@ class TestEnsureLabelsExist:
 
 
 class TestApplyLabelBatch:
-    @patch("gmail_client.time.sleep")
-    def test_calls_modify(self, mock_sleep, client, mock_gmail_service):
+    def test_calls_modify(self, client, mock_gmail_service):
         batch_mock = MagicMock()
         mock_gmail_service.new_batch_http_request.return_value = batch_mock
 

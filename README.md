@@ -84,7 +84,9 @@ Unrecognized LLM responses default to **Important** so nothing gets accidentally
 
 Progress is saved to `output/checkpoint.json` every 10 emails. If you stop the tool or it's interrupted, click **Resume** to pick up where you left off. The checkpoint is cleared automatically after a successful run.
 
-## Performance Expectations
+## Performance
+
+LLM classification is the bottleneck. The tool parallelizes it with a configurable number of concurrent workers (`LLM_WORKERS` in `config.py`, default 4). Email metadata is prefetched in the background so the next batch is ready as soon as classification finishes, and HTTP connections to Ollama are reused across requests.
 
 For ~5,000 emails:
 
@@ -92,10 +94,10 @@ For ~5,000 emails:
 |-------|-----------------|
 | Fetch message IDs | ~5 seconds |
 | Fetch email metadata | ~2 minutes |
-| LLM classification | 40 min – 2.5 hours |
+| LLM classification | 10 min – 40 min (4 workers) |
 | Apply labels | ~30 seconds |
 
-LLM classification is the bottleneck and depends on your GPU. The tool processes emails sequentially since the 14B model handles one request at a time.
+Actual classification speed depends on your GPU and the number of workers. If Ollama can serve multiple requests in parallel (e.g. with `OLLAMA_NUM_PARALLEL`), increasing `LLM_WORKERS` will improve throughput further.
 
 ## Project Structure
 

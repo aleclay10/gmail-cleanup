@@ -1,4 +1,3 @@
-import time
 import logging
 
 from googleapiclient.http import BatchHttpRequest
@@ -74,7 +73,6 @@ class GmailClient:
                     request_id=mid,
                 )
             batch.execute()
-            time.sleep(0.1)
 
         return results
 
@@ -125,4 +123,3 @@ class GmailClient:
                     request_id=mid,
                 )
             batch.execute()
-            time.sleep(0.1)
