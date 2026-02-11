@@ -19,5 +19,7 @@ CHECKPOINT_INTERVAL = 10
 
 DEFAULT_QUERY = "is:unread"
 
+SETTINGS_FILE = os.path.join(BASE_DIR, "settings.json")
+
 OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5-coder:14b"

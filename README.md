@@ -7,6 +7,7 @@ A desktop tool that classifies your unread Gmail emails as **Important** or **Lo
 - **Python 3.10+**
 - **Ollama** installed and running locally ([ollama.com](https://ollama.com))
 - A **Google Cloud project** with the Gmail API enabled
+- **pystray** and **Pillow** (included in `requirements.txt`) for system tray support
 
 ## Setup
 
@@ -53,11 +54,21 @@ On first run, a browser window will open asking you to sign in to your Google ac
 |---------|-------------|
 | **Query** | Gmail search query to select which emails to process (default: `is:unread`) |
 | **Ollama URL** | Address of your Ollama instance (default: `http://localhost:11434`) |
+| **Connected** | Shows the authenticated Gmail address after starting a run |
 | **Start** | Begins a fresh classification run |
 | **Stop** | Pauses the run and saves a checkpoint |
 | **Resume** | Continues from the last saved checkpoint |
+| **Dark Mode** | Toggles between light and dark themes |
 
 The progress bar, counters, and log area show real-time status as emails are classified.
+
+### Settings Persistence
+
+Your query, Ollama URL, dark mode preference, and window position are saved automatically to `settings.json` when the application exits and restored on the next launch.
+
+### System Tray
+
+When you close the window, the application minimizes to the system tray instead of exiting. Double-click the tray icon to restore the window, or right-click and select **Exit** to quit. The tray icon requires the `pystray` and `Pillow` packages; if they are not installed, closing the window will exit the application normally.
 
 ## What It Does
 
